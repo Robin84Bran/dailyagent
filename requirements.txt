@@ -1,0 +1,18 @@
+# Core
+pandas
+numpy
+requests
+matplotlib
+yfinance
+pyyaml
+python-dotenv
+
+# Messaging (only if you use Telegram alerts)
+python-telegram-bot
+
+# Exchanges (pick ONE Binance library; leave the other commented)
+python-binance
+# binance-connector
+
+# Trading venues/feeds
+ccxt

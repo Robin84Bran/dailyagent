@@ -1,0 +1,66 @@
+meta:
+  version: "4s"
+  note: "S1–S5 v0.1 alignment; ATH-band; 0.786 retrace; OI; rotation gates; ladders & DCA"
+
+state_text:
+  S1: "S1 — 🌱 Accumulate quietly. The roots grow in silence."
+  S2: "S2 — ☕ Hold your ground, serenity surrounds."
+  S3: "S3 — 🍃 Time to let go. Distribute gracefully."
+  S4: "S4 — 🌾 Reap the passive harvest. Yield flows gently."
+  S5: "S5 — 🌊 Embrace the dip. Buy with faith, not fear."
+
+score:
+  thresholds: { s3_up: 80, s3_down: 70 }
+  weights:    { fear_greed: 0.25, over_200d: 0.20, funding_z: 0.20, ahr: 0.20, vol: 0.10, breadth: 0.05 }
+  maps:
+    over_200d_pct: { min: -20, mid: 0, hi: 50 }
+    funding_z:     { neg: -2.0, neu: 0.0, pos: 2.0 }
+    ahr:           { low: 0.60, base: 1.00, warn: 1.20, hot: 1.35 }
+
+regime:
+  hysteresis: { s3_up: 80, s3_down: 70, confirm_days: 2 }
+  bands:
+    near_ath_low: -0.03      # -3%
+    near_ath_high: 0.02      # +2%
+    near_200_band_pct: 5
+    deep_discount_pct: -20
+    flat_slope_eps: 0.0003
+  cycle:
+    origin_low_L: 15500.0    # your 2022 low
+    ath_H: 124450.0          # current ATH (we can update when new highs print)
+    retrace_level: 0.786
+    s3_pullback_exit_pct: -0.08
+  confirmers:
+    s3_need: 2
+    s3:
+      ahr_hot: 1.35
+      funding_z_hot: 2.0
+      fng_hot: 85
+      pi_top_cross: true
+      oi_rise_7d_pct: 10.0
+    s5_need: 2
+    s5:
+      funding_leq_zero_days: 7
+      ethbtc_slope_days: 7
+      need_sma200_reclaim: true
+  header_mode: "weighted"
+  precedence: ["S3","S5","S1","S4","S2"]
+
+rotation:
+  ethbtc_slope_days: 7
+  eth_buy_boost_pct: 0.35
+
+actions:
+  S3:
+    btc_sell_ladder: { start: 148000, end: 160000, step: 1000, total_btc: 46 }
+    eth_sell_ladder: { start: 5500, end: 7000, step: 50, total_eth: 190 }
+  S5:
+    btc_dca: { target_max_price: 55000, legs: 6, weeks: 6, total_btc: 100 }
+    eth_dca: { target_max_price: 2000, legs: 6, weeks: 6, total_eth: 500 }
+  S1:
+    btc_dca_weekly: { active: true, lot_btc: 0.5 }
+    eth_dca_weekly: { active: true, lot_eth: 5 }
+  S4:
+    stable_splits: { cefi_safe: 0.50, defi_fixed: 0.25, mm_bluechip: 0.25 }
+  risk: { trade_size_cap_pct: 0.08, slippage_bps_max: 10 }
+  logging: { require_manual_confirm: true, test_tx_amount_usd: 10 }
