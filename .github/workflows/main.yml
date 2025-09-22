@@ -1,21 +1,51 @@
-name: Run Daily Bots
+name: daily-agent
 
 on:
+  # UTC schedule: 09:00 in Taipei/Singapore (UTC+8) == 01:00 UTC
   schedule:
-    - cron: "0 0 * * *"   # every day at UTC midnight
-  workflow_dispatch:       # manual trigger button
+    - cron: "0 1 * * *"
+  # manual run button
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
 
 jobs:
-  run:
+  run-bots-and-publish-json:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - run: python pi_cycle_top_bot.py
-      - run: python ahr_999_bot.py
-      - run: python morning_brief_bot_v8.py
-      - run: python iSunOne_Wealth_Bot_v4o.py
-      - run: python iSunOne_Wealth_Bot_v4s.py
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # (Optional) Run your individual bots.
+      # We keep them non-fatal for now so one failure doesn't stop JSON publish.
+      - name: Run bots (non-fatal)
+        run: |
+          set -x
+          python pi_cycle_top_bot.py || true
+          python ahr_999_bot.py || true
+          python morning_brief_bot_v8.py || true
+          python iSunOne_Wealth_Bot_v4o.py || true
+          python iSunOne_Wealth_Bot_v4s.py || true 2>/dev/null || true
+
+      - name: Generate reports/daily_report.json
+        run: |
+          python .github/scripts/aggregate_to_json.py
+          echo "----"; cat reports/daily_report.json; echo "----"
+
+      - name: Commit JSON back to main
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update reports/daily_report.json [skip ci]"
+          file_pattern: reports/daily_report.json
