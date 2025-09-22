@@ -1,10 +1,9 @@
 name: daily-agent
 
 on:
-  # UTC schedule: 09:00 in Taipei/Singapore (UTC+8) == 01:00 UTC
   schedule:
+    # 09:00 in Taipei/Singapore (UTC+8) == 01:00 UTC
     - cron: "0 1 * * *"
-  # manual run button
   workflow_dispatch: {}
 
 permissions:
@@ -28,24 +27,51 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # (Optional) Run your individual bots.
-      # We keep them non-fatal for now so one failure doesn't stop JSON publish.
-      - name: Run bots (non-fatal)
+      - name: Prepare output dirs
         run: |
-          set -x
-          python pi_cycle_top_bot.py || true
-          python ahr_999_bot.py || true
-          python morning_brief_bot_v8.py || true
-          python iSunOne_Wealth_Bot_v4o.py || true
-          python iSunOne_Wealth_Bot_v4s.py || true 2>/dev/null || true
+          mkdir -p reports/tmp
+          echo "--- start $(date -u +%FT%TZ) ---" > reports/tmp/_run.log
+
+      # --- Run each bot and capture stdout to a file (non-fatal) ---
+      - name: Run pi_cycle_top_bot
+        run: |
+          set -o pipefail
+          python pi_cycle_top_bot.py 2>&1 | tee reports/tmp/pi_cycle.txt || true
+
+      - name: Run ahr_999_bot
+        run: |
+          set -o pipefail
+          python ahr_999_bot.py 2>&1 | tee reports/tmp/ahr999.txt || true
+
+      - name: Run morning_brief_bot_v8 (Compound HF)
+        run: |
+          set -o pipefail
+          python morning_brief_bot_v8.py 2>&1 | tee reports/tmp/compound_hf.txt || true
+
+      - name: Run iSunOne_Wealth_Bot_v4o (Score)
+        run: |
+          set -o pipefail
+          python iSunOne_Wealth_Bot_v4o.py 2>&1 | tee reports/tmp/v4o_score.txt || true
+
+      - name: Run iSunOne_Wealth_Bot_v4s (Score)
+        run: |
+          set -o pipefail
+          python iSunOne_Wealth_Bot_v4s.py 2>&1 | tee reports/tmp/v4s_score.txt || true
+      
+      # If you later add eth_btc_rotation_bot.py, include a step like this:
+      # - name: Run eth_btc_rotation_bot
+      #   run: |
+      #     set -o pipefail
+      #     python eth_btc_rotation_bot.py 2>&1 | tee reports/tmp/eth_btc.txt || true
 
       - name: Generate reports/daily_report.json
         run: |
-          python .github/scripts/aggregate_to_json.py
-          echo "----"; cat reports/daily_report.json; echo "----"
+          python scripts/aggregate_to_json.py
+          echo "-----"; cat reports/daily_report.json; echo "-----"
 
       - name: Commit JSON back to main
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: update reports/daily_report.json [skip ci]"
-          file_pattern: reports/daily_report.json
+          file_pattern: "reports/daily_report.json reports/tmp/*"
+
