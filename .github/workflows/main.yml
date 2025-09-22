@@ -1,0 +1,21 @@
+name: Run Daily Bots
+
+on:
+  schedule:
+    - cron: "0 0 * * *"   # every day at UTC midnight
+  workflow_dispatch:       # manual trigger button
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python pi_cycle_top_bot.py
+      - run: python ahr_999_bot.py
+      - run: python morning_brief_bot_v8.py
+      - run: python iSunOne_Wealth_Bot_v4o.py
+      - run: python iSunOne_Wealth_Bot_v4s.py
