@@ -12,7 +12,6 @@ REPORTS.mkdir(parents=True, exist_ok=True)
 FILES = {
     "pi_cycle_top_bot.out":           "pi_cycle",
     "ahr_999_bot.out":                "ahr999",
-    "eth_btc_rotation_bot.out":       "eth_btc",       # present only if you add this bot
     "morning_brief_bot_v8.out":       "compound_hf",
     "iSunOne_Wealth_Bot_v4o.out":     "v4o_score",
     "iSunOne_Wealth_Bot_v4s.out":     "v4s_score",     # extra, nice to compare v4o vs v4s
