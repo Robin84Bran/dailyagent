@@ -1,9 +1,10 @@
 name: daily-agent
 
 on:
+  # UTC schedule: 09:00 in Taipei/Singapore (UTC+8) == 01:00 UTC
   schedule:
-    # 09:00 in Taipei/Singapore (UTC+8) == 01:00 UTC
     - cron: "0 1 * * *"
+  # manual run button
   workflow_dispatch: {}
 
 permissions:
@@ -12,6 +13,7 @@ permissions:
 jobs:
   run-bots-and-publish-json:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -27,51 +29,51 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Prepare output dirs
-        run: |
-          mkdir -p reports/tmp
-          echo "--- start $(date -u +%FT%TZ) ---" > reports/tmp/_run.log
-
-      # --- Run each bot and capture stdout to a file (non-fatal) ---
-      - name: Run pi_cycle_top_bot
+      - name: Run bots (capture stdout; never fail)
         run: |
           set -o pipefail
-          python pi_cycle_top_bot.py 2>&1 | tee reports/tmp/pi_cycle.txt || true
+          mkdir -p logs reports
 
-      - name: Run ahr_999_bot
-        run: |
-          set -o pipefail
-          python ahr_999_bot.py 2>&1 | tee reports/tmp/ahr999.txt || true
+          # record run timestamp (UTC)
+          TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "run_utc=${TS}" | tee logs/run.info
 
-      - name: Run morning_brief_bot_v8 (Compound HF)
-        run: |
-          set -o pipefail
-          python morning_brief_bot_v8.py 2>&1 | tee reports/tmp/compound_hf.txt || true
+          # each bot prints to its own log; failures are tolerated (|| true)
+          (python pi_cycle_top_bot.py        || true) | tee logs/pi_cycle_top_bot.out
+          (python ahr_999_bot.py             || true) | tee logs/ahr_999_bot.out
 
-      - name: Run iSunOne_Wealth_Bot_v4o (Score)
-        run: |
-          set -o pipefail
-          python iSunOne_Wealth_Bot_v4o.py 2>&1 | tee reports/tmp/v4o_score.txt || true
+          # optional ETH/BTC rotation bot (only if present)
+          #if [ -f eth_btc_rotation_bot.py ]; then
+          #  (python eth_btc_rotation_bot.py  || true) | tee logs/eth_btc_rotation_bot.out
+          #fi
 
-      - name: Run iSunOne_Wealth_Bot_v4s (Score)
-        run: |
-          set -o pipefail
-          python iSunOne_Wealth_Bot_v4s.py 2>&1 | tee reports/tmp/v4s_score.txt || true
-      
-      # If you later add eth_btc_rotation_bot.py, include a step like this:
-      # - name: Run eth_btc_rotation_bot
-      #   run: |
-      #     set -o pipefail
-      #     python eth_btc_rotation_bot.py 2>&1 | tee reports/tmp/eth_btc.txt || true
+          (python morning_brief_bot_v8.py    || true) | tee logs/morning_brief_bot.out
+          (python iSunOne_Wealth_Bot_v4o.py  || true) | tee logs/iSunOne_Wealth_Bot_v4o.out
+          (python iSunOne_Wealth_Bot_v4s.py  || true) | tee logs/iSunOne_Wealth_Bot_v4s.out
 
-      - name: Generate reports/daily_report.json
+      - name: Aggregate -> reports/daily_report_YYYY-MM-DD.json
         run: |
+          # expects scripts/aggregate_to_json.py (you added this earlier)
           python scripts/aggregate_to_json.py
-          echo "-----"; cat reports/daily_report.json; echo "-----"
+          echo "Generated files:"
+          ls -lh reports || true
+          echo "Sample of logs:"
+          ls -lh logs || true
+
+      - name: Upload logs & reports (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-agent-${{ github.run_id }}
+          path: |
+            logs/**
+            reports/**
 
       - name: Commit JSON back to main
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: update reports/daily_report.json [skip ci]"
-          file_pattern: "reports/daily_report.json reports/tmp/*"
+          commit_message: "chore: update reports (daily) [skip ci]"
+          file_pattern: "reports/*.json"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
+
 
