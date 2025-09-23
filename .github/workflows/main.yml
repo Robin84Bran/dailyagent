@@ -1,10 +1,9 @@
 name: daily-agent
 
 on:
-  # UTC schedule: 09:00 in Taipei/Singapore (UTC+8) == 01:00 UTC
   schedule:
+    # 09:00 UTC+8 == 01:00 UTC
     - cron: "0 1 * * *"
-  # manual run button
   workflow_dispatch: {}
 
 permissions:
@@ -25,42 +24,46 @@ jobs:
           cache: "pip"
 
       - name: Install deps
+        shell: bash
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+      # Even if a bot throws, keep going
       - name: Run bots (capture stdout; never fail)
+        shell: bash
+        continue-on-error: true
         run: |
-          set -o pipefail
+          set +e
           mkdir -p logs reports
 
-          # record run timestamp (UTC)
           TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           echo "run_utc=${TS}" | tee logs/run.info
 
-          # each bot prints to its own log; failures are tolerated (|| true)
-          (python pi_cycle_top_bot.py        || true) | tee logs/pi_cycle_top_bot.out
-          (python ahr_999_bot.py             || true) | tee logs/ahr_999_bot.out
+          ( python pi_cycle_top_bot.py       || true ) | tee logs/pi_cycle_top_bot.out
+          ( python ahr_999_bot.py            || true ) | tee logs/ahr_999_bot.out
 
-          # optional ETH/BTC rotation bot (only if present)
-          #if [ -f eth_btc_rotation_bot.py ]; then
-          #  (python eth_btc_rotation_bot.py  || true) | tee logs/eth_btc_rotation_bot.out
-          #fi
+          if [ -f eth_btc_rotation_bot.py ]; then
+            ( python eth_btc_rotation_bot.py || true ) | tee logs/eth_btc_rotation_bot.out
+          fi
 
-          (python morning_brief_bot_v8.py    || true) | tee logs/morning_brief_bot.out
-          (python iSunOne_Wealth_Bot_v4o.py  || true) | tee logs/iSunOne_Wealth_Bot_v4o.out
-          (python iSunOne_Wealth_Bot_v4s.py  || true) | tee logs/iSunOne_Wealth_Bot_v4s.out
+          ( python morning_brief_bot_v8.py   || true ) | tee logs/morning_brief_bot.out
+          ( python iSunOne_Wealth_Bot_v4s.py || true ) | tee logs/iSunOne_Wealth_Bot_v4s.out
+          ( python iSunOne_Wealth_Bot_v4o.py || true ) | tee logs/iSunOne_Wealth_Bot_v4o.out
 
+      # Aggregate never fails; it will write a dated JSON with nulls if needed
       - name: Aggregate -> reports/daily_report_YYYY-MM-DD.json
+        shell: bash
         run: |
-          # expects scripts/aggregate_to_json.py (you added this earlier)
-          python scripts/aggregate_to_json.py
-          echo "Generated files:"
-          ls -lh reports || true
-          echo "Sample of logs:"
-          ls -lh logs || true
+          python scripts/aggregate_to_json.py || echo "aggregate_to_json returned non-zero (continuing)"
+          echo "Reports dir:"
+          ls -lah reports || true
+          echo "Logs dir:"
+          ls -lah logs || true
 
+      # Always upload artifacts, even on failure (for debugging)
       - name: Upload logs & reports (artifact)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: daily-agent-${{ github.run_id }}
@@ -68,12 +71,15 @@ jobs:
             logs/**
             reports/**
 
+      # Only try to commit if reports exist
       - name: Commit JSON back to main
+        if: ${{ hashFiles('reports/*.json') != '' }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: update reports (daily) [skip ci]"
           file_pattern: "reports/*.json"
           commit_user_name: "github-actions[bot]"
           commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
+
 
 
